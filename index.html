@@ -1,851 +1,288 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>打砖块 · Brick Breaker</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
-    background: radial-gradient(ellipse at top, #1e3a8a 0%, #0f172a 60%, #020617 100%);
-    color: #e2e8f0;
-    padding: 12px;
-    overflow-x: hidden;
-  }
-
-  header { text-align: center; margin-bottom: 4px; }
-
-  h1 {
-    font-size: 26px;
-    font-weight: 800;
-    letter-spacing: 4px;
-    background: linear-gradient(90deg, #60a5fa, #a78bfa, #f472b6);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-
-  .subtitle { margin-top: 4px; font-size: 11px; color: #64748b; letter-spacing: 2px; }
-
-  .hud { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-
-  .pill {
-    background: rgba(30, 41, 59, 0.8);
-    border: 1px solid rgba(148, 163, 184, 0.2);
-    border-radius: 999px;
-    padding: 6px 14px;
-    font-size: 13px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    backdrop-filter: blur(8px);
-    transition: all .25s;
-    cursor: pointer;
-    user-select: none;
-  }
-
-  .pill b { color: #fbbf24; font-variant-numeric: tabular-nums; }
-  .pill.record { border-color: #f59e0b; box-shadow: 0 0 14px rgba(245,158,11,.45); }
-  .pill.slow-on { border-color: #a3e635; color: #a3e635; }
-  .pill.fast-on { border-color: #f87171; color: #f87171; box-shadow: 0 0 14px rgba(248,113,113,.4); }
-
-  .stage {
-    position: relative;
-    border-radius: 16px;
-    overflow: hidden;
-    box-shadow: 0 24px 60px rgba(0,0,0,.55), 0 0 0 1px rgba(148,163,184,.15);
-    width: min(96vw, 1200px);
-    aspect-ratio: 16 / 11;
-    max-height: 74vh;
-  }
-
-  canvas { display: block; width: 100%; height: 100%; background: #0b1220; }
-
-  .overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 14px;
-    background: rgba(2, 6, 23, .85);
-    backdrop-filter: blur(4px);
-    text-align: center;
-    padding: 20px;
-  }
-
-  .overlay.hidden { display: none; }
-  .overlay h2 { font-size: 26px; letter-spacing: 3px; color: #f8fafc; }
-  .overlay p { font-size: 13px; color: #94a3b8; line-height: 1.9; }
-
-  .btn {
-    margin-top: 6px;
-    padding: 11px 30px;
-    font-size: 15px;
-    letter-spacing: 2px;
-    color: #0f172a;
-    font-weight: 700;
-    border: none;
-    border-radius: 999px;
-    cursor: pointer;
-    background: linear-gradient(90deg, #38bdf8, #818cf8);
-    transition: transform .15s, box-shadow .15s;
-  }
-
-  .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(56,189,248,.35); }
-
-  footer { font-size: 11px; color: #475569; text-align: center; line-height: 1.9; }
-
-  kbd {
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 4px;
-    padding: 1px 6px;
-    font-size: 11px;
-    color: #cbd5e1;
-  }
-</style>
+    <meta charset="UTF-8">
+    <title>加速打砖块 - 发射加速/收回减速</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #2c3e50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            background-color: #34495e;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .controls {
+            margin-top: 15px;
+            font-size: 16px;
+            color: #bdc3c7;
+        }
+        kbd {
+            background-color: #7f8c8d;
+            padding: 2px 6px;
+            border-radius: 3px;
+            color: white;
+        }
+    </style>
 </head>
 <body>
 
-<header>
-  <h1>打砖块</h1>
-  <div class="subtitle">BRICK BREAKER · CANVAS</div>
-</header>
-
-<div class="hud">
-  <div class="pill">🎯 得分 <b id="score">0</b></div>
-  <div class="pill">🧱 剩余 <b id="left">0</b></div>
-  <div class="pill">💛 关卡 <b id="level">1</b></div>
-  <div class="pill">❤️ 生命 <b id="lives">3</b></div>
-  <div class="pill" id="speedPill">⚡ 速度 <b id="speedState">正常</b></div>
-  <div class="pill" id="bestPill">🏆 最高分 <b id="best">0</b></div>
-</div>
-
-<div class="stage">
-  <canvas id="game"></canvas>
-
-  <div class="overlay" id="overlay">
-    <h2 id="ovTitle">准备开始</h2>
-    <p id="ovText">移动挡板接住小球，击碎所有砖块。<br>每 3 关出现 <b style="color:#f472b6">BOSS</b>，每关生命自动回满 3 条。<br>按 <b>S</b> 键或点击速度标签切换：<b>慢 → 正常 → 快 → 极速</b></p>
-    <button class="btn" id="ovBtn">开始游戏</button>
-  </div>
-</div>
-
-<footer>
-  <kbd>←</kbd> <kbd>→</kbd> 或 <kbd>A</kbd> <kbd>D</kbd> 移动挡板，也可直接移动鼠标<br>
-  <kbd>空格</kbd> 发射小球 / 暂停 &nbsp;·&nbsp; <kbd>S</kbd> 切换速度档位（慢 / 正常 / 快 / 极速）
-</footer>
+    <h2>🧱 动态速度打砖块</h2>
+    <div class="controls">
+        操作说明：<kbd>←</kbd> <kbd>→</kbd> 移动挡板 | <kbd>空格键</kbd> 发射 / 触发减速收回
+    </div>
+    <canvas id="gameCanvas" width="800" height="600"></canvas>
 
 <script>
-(() => {
-  const cvs = document.getElementById('game');
-  const ctx = cvs.getContext('2d');
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
 
-  // 逻辑分辨率（CSS 负责缩放到屏幕）
-  const W = 960, H = 660;
-  cvs.width = W;
-  cvs.height = H;
+    // --- 游戏核心变量 ---
+    let isPlaying = false;
+    let isRetracting = false; // 是否处于减速收回状态
+    let speedMultiplier = 1;  // 速度乘数（击碎砖块后增加）
 
-  // ---------- 配置 ----------
-  const CFG = {
-    rows: 6,
-    cols: 12,
-    brickW: 66,
-    brickH: 24,
-    gap: 6,
-    topOffset: 100,
-    ballR: 9,
-    paddleW: 150,
-    paddleH: 15,
-    baseSpeed: 6.0,
-    maxSpeed: 13,
-    speedUp: 0.12,
-    paddleSpeed: 20,
-    lives: 3
-  };
-
-  const BOSS = {
-    w: 230,
-    h: 62,
-    y: 100,
-    hpPerLevel: 30,
-    moveSpeed: 4.2,
-    fireInterval: 55,
-    bulletSpeed: 6.5,
-    phases: [
-      { at: 0.66, speed: 1.0, fire: 1.0 },
-      { at: 0.33, speed: 1.6, fire: 0.7 },
-      { at: 0,    speed: 2.3, fire: 0.45 }
-    ]
-  };
-
-  const PALETTE = [
-    ['#f87171', '#dc2626'],
-    ['#fb923c', '#ea580c'],
-    ['#facc15', '#ca8a04'],
-    ['#a3e635', '#65a30d'],
-    ['#34d399', '#059669'],
-    ['#60a5fa', '#2563eb'],
-    ['#a78bfa', '#7c3aed'],
-    ['#f472b6', '#db2777']
-  ];
-
-  // ---------- 状态 ----------
-  let bricks = [], balls = [], particles = [], powerups = [];
-  let boss = null, bossBullets = [];
-  let paddle, score, lives, level, state, best;
-  let keys = {};
-  let targetX = null;
-  let shake = 0, bossShake = 0;
-  let bossDefeated = false;
-
-  // 速度档位：慢 / 正常 / 快 / 极速
-  const SPEED_LEVELS = [0.7, 1, 1.45, 1.9];
-  const SPEED_NAMES  = ['慢', '正常', '快', '极速'];
-  let speedIdx = 1;   // 默认「正常」
-
-  best = +(localStorage.getItem('bb_best') || 0);
-  document.getElementById('best').textContent = best;
-
-  // ---------- 初始化 ----------
-  function reset(full = true) {
-    if (full) { score = 0; lives = CFG.lives; level = 1; }
-    paddle = { x: W / 2 - CFG.paddleW / 2, w: CFG.paddleW, h: CFG.paddleH, y: H - 46 };
-    boss = null;
-    bossBullets = [];
-    bossDefeated = false;
-    buildBricks();
-    spawnBall();
-    particles = [];
-    powerups = [];
-    sync();
-  }
-
-  function buildBricks() {
-    bricks = [];
-    const totalW = CFG.cols * CFG.brickW + (CFG.cols - 1) * CFG.gap;
-    const startX = (W - totalW) / 2;
-    const rows = Math.min(CFG.rows + Math.floor((level - 1) / 2), 8);
-
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < CFG.cols; c++) {
-        const hard = level > 1 && Math.random() < Math.min(0.08 * level, 0.3);
-        bricks.push({
-          x: startX + c * (CFG.brickW + CFG.gap),
-          y: CFG.topOffset + r * (CFG.brickH + CFG.gap),
-          w: CFG.brickW,
-          h: CFG.brickH,
-          hp: hard ? 2 : 1,
-          maxHp: hard ? 2 : 1,
-          color: PALETTE[r % PALETTE.length],
-          alive: true
-        });
-      }
-    }
-  }
-
-  function spawnBall() {
-    const speed = Math.min(CFG.baseSpeed + (level - 1) * 0.5, CFG.maxSpeed);
-    balls = [{
-      x: paddle.x + paddle.w / 2,
-      y: paddle.y - CFG.ballR - 2,
-      vx: speed * (Math.random() > 0.5 ? 1 : -1) * 0.5,
-      vy: -speed,
-      r: CFG.ballR,
-      stuck: true
-    }];
-  }
-
-  function spawnBoss() {
-    const stage = level / 3;
-    const hp = BOSS.hpPerLevel + (stage - 1) * 20;
-    boss = {
-      x: W / 2 - BOSS.w / 2,
-      y: -BOSS.h - 20,
-      w: BOSS.w,
-      h: BOSS.h,
-      hp: hp,
-      maxHp: hp,
-      dir: 1,
-      phase: 0,
-      fireTimer: BOSS.fireInterval,
-      hitFlash: 0,
-      entering: true
+    // --- 挡板设置 ---
+    const paddle = {
+        width: 120,
+        height: 15,
+        x: (canvas.width - 120) / 2,
+        y: canvas.height - 30,
+        speed: 8,
+        dx: 0
     };
-    bossBullets = [];
-    bossDefeated = false;
-    bricks = [];
-    powerups = [];
-  }
 
-  // ---------- 速度切换 ----------
-  function cycleSpeed() {
-    speedIdx = (speedIdx + 1) % SPEED_LEVELS.length;
-    const name = SPEED_NAMES[speedIdx];
-    document.getElementById('speedState').textContent = name;
-    const pill = document.getElementById('speedPill');
-    pill.classList.toggle('slow-on', speedIdx === 0);
-    pill.classList.toggle('fast-on', speedIdx >= 2);
-  }
+    // --- 弹球设置 ---
+    const ball = {
+        x: canvas.width / 2,
+        y: canvas.height - 50,
+        radius: 8,
+        baseSpeed: 5, // 基础速度
+        dx: 0,
+        dy: 0,
+        isLaunched: false // 是否已经发射
+    };
 
-  // ---------- 输入 ----------
-  addEventListener('keydown', e => {
-    keys[e.code] = true;
+    // --- 砖块设置 ---
+    const brickRowCount = 5;
+    const brickColumnCount = 10;
+    const brickWidth = 70;
+    const brickHeight = 25;
+    const brickPadding = 10;
+    const brickOffsetTop = 50;
+    const brickOffsetLeft = 35;
+    let bricks = [];
 
-    if (e.code === 'KeyS') cycleSpeed();
-
-    if (e.code === 'Space') {
-      e.preventDefault();
-      if (state === 'play') {
-        balls.forEach(b => { if (b.stuck) b.stuck = false; });
-        state = 'run';
-      } else if (state === 'run') state = 'pause';
-      else if (state === 'pause') state = 'run';
-    }
-  });
-  addEventListener('keyup', e => keys[e.code] = false);
-
-  cvs.addEventListener('mousemove', e => {
-    const rect = cvs.getBoundingClientRect();
-    targetX = (e.clientX - rect.left) * (W / rect.width);
-  });
-
-  cvs.addEventListener('click', () => {
-    if (state === 'play') { balls.forEach(b => b.stuck = false); state = 'run'; }
-  });
-
-  document.getElementById('speedPill').addEventListener('click', cycleSpeed);
-
-  document.getElementById('ovBtn').addEventListener('click', () => {
-    document.getElementById('overlay').classList.add('hidden');
-    document.getElementById('bestPill').classList.remove('record');
-    reset(true);
-    state = 'play';
-  });
-
-  // ---------- 逻辑 ----------
-  function update() {
-    if (state !== 'run' && state !== 'play') return;
-
-    const T = SPEED_LEVELS[speedIdx];
-
-    // 挡板
-    const sp = CFG.paddleSpeed * T;
-    if (keys['ArrowLeft'] || keys['KeyA']) { paddle.x -= sp; targetX = null; }
-    if (keys['ArrowRight'] || keys['KeyD']) { paddle.x += sp; targetX = null; }
-
-    if (targetX !== null) {
-      const dest = Math.max(0, Math.min(W - paddle.w, targetX - paddle.w / 2));
-      paddle.x += (dest - paddle.x) * 0.4;
-    }
-    paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x));
-
-    // 粒子
-    particles = particles.filter(p => {
-      p.x += p.vx * T; p.y += p.vy * T; p.vy += 0.18 * T; p.life--;
-      return p.life > 0;
-    });
-
-    // 道具
-    powerups = powerups.filter(p => {
-      p.y += 5.5 * T;
-      if (p.y > paddle.y - 10 && p.y < paddle.y + paddle.h + 10 &&
-          p.x > paddle.x - 12 && p.x < paddle.x + paddle.w + 12) {
-        applyPower(p.type);
-        return false;
-      }
-      return p.y < H;
-    });
-
-    if (shake > 0) shake *= 0.85;
-    if (bossShake > 0) bossShake *= 0.88;
-
-    // ---------- Boss ----------
-    if (boss) {
-      if (boss.entering) {
-        boss.y += 4 * T;
-        if (boss.y >= BOSS.y) { boss.y = BOSS.y; boss.entering = false; }
-      } else {
-        const ratio = boss.hp / boss.maxHp;
-        const ph = BOSS.phases.find(p => ratio > p.at) || BOSS.phases[2];
-        boss.phase = BOSS.phases.indexOf(ph);
-
-        boss.x += BOSS.moveSpeed * ph.speed * boss.dir * T;
-        if (boss.x < 20) { boss.x = 20; boss.dir = 1; }
-        if (boss.x > W - boss.w - 20) { boss.x = W - boss.w - 20; boss.dir = -1; }
-
-        boss.fireTimer -= T;
-        if (boss.fireTimer <= 0) {
-          boss.fireTimer = BOSS.fireInterval * ph.fire;
-          fireBossBullet();
-        }
-      }
-      if (boss.hitFlash > 0) boss.hitFlash -= T;
-
-      bossBullets = bossBullets.filter(b => {
-        b.x += b.vx * T;
-        b.y += b.vy * T;
-        if (b.y + 6 > paddle.y && b.y < paddle.y + paddle.h &&
-            b.x > paddle.x && b.x < paddle.x + paddle.w) {
-          lives--;
-          sync();
-          bossShake = 10;
-          burst(b.x, b.y, '#f87171');
-          if (lives <= 0) gameOver();
-          return false;
-        }
-        return b.y < H && b.x > -20 && b.x < W + 20;
-      });
-    }
-
-    // ---------- 小球（子步进防穿透）----------
-    const steps = T > 1.2 ? 2 : 1;
-    const sT = T / steps;
-
-    balls.forEach(ball => {
-      if (ball.stuck) {
-        ball.x = paddle.x + paddle.w / 2;
-        ball.y = paddle.y - ball.r - 2;
-        return;
-      }
-
-      for (let s = 0; s < steps; s++) {
-        const spd = Math.hypot(ball.vx, ball.vy);
-        if (spd > CFG.maxSpeed) {
-          ball.vx = ball.vx / spd * CFG.maxSpeed;
-          ball.vy = ball.vy / spd * CFG.maxSpeed;
-        }
-
-        ball.x += ball.vx * sT;
-        ball.y += ball.vy * sT;
-
-        if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -1; }
-        if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx *= -1; }
-        if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -1; }
-
-        // 挡板反弹
-        if (ball.vy > 0 &&
-            ball.y + ball.r > paddle.y &&
-            ball.y - ball.r < paddle.y + paddle.h &&
-            ball.x > paddle.x - ball.r &&
-            ball.x < paddle.x + paddle.w + ball.r) {
-          const hit = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
-          const speed = Math.min(Math.hypot(ball.vx, ball.vy) + CFG.speedUp, CFG.maxSpeed);
-          const angle = hit * (Math.PI / 3.6);
-          ball.vx = speed * Math.sin(angle);
-          ball.vy = -Math.max(speed * Math.cos(angle), speed * 0.45);
-          ball.y = paddle.y - ball.r - 1;
-          shake = 4;
-        }
-
-        // Boss 碰撞
-        if (boss && !boss.entering &&
-            ball.x + ball.r > boss.x && ball.x - ball.r < boss.x + boss.w &&
-            ball.y + ball.r > boss.y && ball.y - ball.r < boss.y + boss.h) {
-          const ox = Math.min(ball.x + ball.r - boss.x, boss.x + boss.w - (ball.x - ball.r));
-          const oy = Math.min(ball.y + ball.r - boss.y, boss.y + boss.h - (ball.y - ball.r));
-          if (ox < oy) ball.vx *= -1; else ball.vy *= -1;
-
-          boss.hp--;
-          boss.hitFlash = 8;
-          score += 5;
-          bossShake = 5;
-          burst(ball.x, ball.y, '#f472b6');
-          if (Math.random() < 0.25) dropPower(boss.x + Math.random() * boss.w, boss.y + boss.h);
-
-          if (boss.hp <= 0) {
-            for (let i = 0; i < 40; i++) {
-              burst(boss.x + Math.random() * boss.w, boss.y + Math.random() * boss.h,
-                    ['#f472b6', '#facc15', '#60a5fa'][i % 3]);
+    // 初始化砖块
+    function initBricks() {
+        bricks = [];
+        for (let c = 0; c < brickColumnCount; c++) {
+            bricks[c] = [];
+            for (let r = 0; r < brickRowCount; r++) {
+                bricks[c][r] = { x: 0, y: 0, status: 1 };
             }
-            score += 500;
-            boss = null;
-            bossBullets = [];
-            bossShake = 20;
-            bossDefeated = true;
-          }
-          sync();
+        }
+    }
+    initBricks();
+
+    // --- 键盘事件监听 ---
+    document.addEventListener('keydown', keyDownHandler);
+    document.addEventListener('keyup', keyUpHandler);
+
+    function keyDownHandler(e) {
+        if (e.key === 'Right' || e.key === 'ArrowRight') {
+            paddle.dx = paddle.speed;
+        } else if (e.key === 'Left' || e.key === 'ArrowLeft') {
+            paddle.dx = -paddle.speed;
+        } else if (e.key === ' ' || e.code === 'Space') {
+            e.preventDefault(); // 防止页面滚动
+            if (!ball.isLaunched) {
+                // 发射弹球：赋予初始速度
+                launchBall();
+            } else if (ball.isLaunched && !isRetracting) {
+                // 如果已经发射，再次按下空格触发“减速收回”
+                isRetracting = true;
+            }
+        }
+    }
+
+    function keyUpHandler(e) {
+        if (e.key === 'Right' || e.key === 'ArrowRight' || e.key === 'Left' || e.key === 'ArrowLeft') {
+            paddle.dx = 0;
+        }
+    }
+
+    // 发射弹球
+    function launchBall() {
+        ball.isLaunched = true;
+        // 随机向左上或右上发射
+        let direction = Math.random() > 0.5 ? 1 : -1;
+        ball.dx = ball.baseSpeed * direction;
+        ball.dy = -ball.baseSpeed;
+    }
+
+    // --- 碰撞与物理逻辑 ---
+    function collisionDetection() {
+        for (let c = 0; c < brickColumnCount; c++) {
+            for (let r = 0; r < brickRowCount; r++) {
+                let b = bricks[c][r];
+                if (b.status === 1) {
+                    if (ball.x > b.x && ball.x < b.x + brickWidth && ball.y > b.y && ball.y < b.y + brickHeight) {
+                        // 1. 反弹
+                        ball.dy = -ball.dy;
+                        b.status = 0; // 销毁砖块
+
+                        // 2. 【核心机制】击碎砖块后加速！
+                        speedMultiplier += 0.05; // 每次击碎增加5%的速度
+                        
+                        // 重新计算当前速度方向，应用新的速度乘数
+                        let currentSpeed = ball.baseSpeed * speedMultiplier;
+                        // 保持原有的运动角度，只改变速度大小
+                        let angle = Math.atan2(ball.dy, ball.dx);
+                        ball.dx = currentSpeed * Math.cos(angle);
+                        ball.dy = currentSpeed * Math.sin(angle);
+                    }
+                }
+            }
+        }
+    }
+
+    // --- 绘制函数 ---
+    function drawBall() {
+        ctx.beginPath();
+        ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+        // 收回时弹球变红提示，正常时为白色
+        ctx.fillStyle = isRetracting ? '#e74c3c' : '#ecf0f1'; 
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    function drawPaddle() {
+        ctx.beginPath();
+        ctx.rect(paddle.x, paddle.y, paddle.width, paddle.height);
+        ctx.fillStyle = '#3498db';
+        ctx.fill();
+        ctx.closePath();
+    }
+
+    function drawBricks() {
+        for (let c = 0; c < brickColumnCount; c++) {
+            for (let r = 0; r < brickRowCount; r++) {
+                if (bricks[c][r].status === 1) {
+                    let brickX = (c * (brickWidth + brickPadding)) + brickOffsetLeft;
+                    let brickY = (r * (brickHeight + brickPadding)) + brickOffsetTop;
+                    bricks[c][r].x = brickX;
+                    bricks[c][r].y = brickY;
+                    ctx.beginPath();
+                    ctx.rect(brickX, brickY, brickWidth, brickHeight);
+                    // 根据行数显示不同颜色
+                    ctx.fillStyle = `hsl(${r * 40}, 70%, 50%)`;
+                    ctx.fill();
+                    ctx.closePath();
+                }
+            }
+        }
+    }
+
+    function drawUI() {
+        ctx.font = '16px Arial';
+        ctx.fillStyle = '#ecf0f1';
+        ctx.fillText(`当前速度倍率: x${speedMultiplier.toFixed(2)}`, 8, 20);
+        
+        if (isRetracting) {
+            ctx.font = 'bold 20px Arial';
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillText('⚠️ 减速收回中...', canvas.width / 2 - 70, canvas.height / 2);
+        }
+    }
+
+    // --- 游戏主循环 ---
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        drawBricks();
+        drawBall();
+        drawPaddle();
+        drawUI();
+        collisionDetection();
+
+        // 1. 挡板移动逻辑
+        if (paddle.x + paddle.dx > 0 && paddle.x + paddle.dx + paddle.width < canvas.width) {
+            paddle.x += paddle.dx;
         }
 
-        // 砖块碰撞
-        for (const b of bricks) {
-          if (!b.alive) continue;
-          if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
-              ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
-            const overlapX = Math.min(ball.x + ball.r - b.x, b.x + b.w - (ball.x - ball.r));
-            const overlapY = Math.min(ball.y + ball.r - b.y, b.y + b.h - (ball.y - ball.r));
-            if (overlapX < overlapY) ball.vx *= -1; else ball.vy *= -1;
+        // 2. 弹球逻辑
+        if (ball.isLaunched) {
+            // 【核心机制】减速收回逻辑
+            if (isRetracting) {
+                // 强制降低速度，并让弹球缓慢向挡板中心靠拢
+                ball.dy = 2; // 缓慢向下移动
+                // 水平方向缓慢向挡板中心移动
+                let paddleCenter = paddle.x + paddle.width / 2;
+                if (ball.x < paddleCenter) ball.dx = 1;
+                else if (ball.x > paddleCenter) ball.dx = -1;
+                else ball.dx = 0;
 
-            b.hp--;
-            if (b.hp <= 0) {
-              b.alive = false;
-              score += 10 * level;
-              burst(b.x + b.w / 2, b.y + b.h / 2, b.color[0]);
-              if (Math.random() < 0.14) dropPower(b.x + b.w / 2, b.y + b.h / 2);
+                // 判断是否接住（回到挡板区域）
+                if (ball.y > paddle.y - ball.radius) {
+                    isRetracting = false;
+                    ball.isLaunched = false;
+                    speedMultiplier = 1; // 收回后重置速度倍率
+                    ball.x = paddle.x + paddle.width / 2;
+                    ball.y = paddle.y - ball.radius - 1;
+                }
             } else {
-              score += 5;
-              shake = 3;
+                // 正常飞行物理碰撞（左右墙壁）
+                if (ball.x + ball.dx > canvas.width - ball.radius || ball.x + ball.dx < ball.radius) {
+                    ball.dx = -ball.dx;
+                }
+                // 顶部墙壁
+                if (ball.y + ball.dy < ball.radius) {
+                    ball.dy = -ball.dy;
+                } 
+                // 底部（游戏失败）
+                else if (ball.y + ball.dy > canvas.height - ball.radius) {
+                    alert('游戏结束！得分：' + Math.round((speedMultiplier - 1) * 100));
+                    document.location.reload();
+                }
+                // 挡板碰撞
+                else if (ball.y + ball.dy > paddle.y - ball.radius) {
+                    if (ball.x > paddle.x && ball.x < paddle.x + paddle.width) {
+                        // 根据击中挡板的位置改变反弹角度
+                        let hitPoint = (ball.x - (paddle.x + paddle.width / 2)) / (paddle.width / 2);
+                        let currentSpeed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+                        let angle = hitPoint * (Math.PI / 3); // 最大反弹60度
+                        
+                        ball.dx = currentSpeed * Math.sin(angle);
+                        ball.dy = -currentSpeed * Math.cos(angle);
+                    }
+                }
             }
-            sync();
-            break;
-          }
+
+            // 更新弹球位置
+            ball.x += ball.dx;
+            ball.y += ball.dy;
+
+        } else {
+            // 弹球未发射时，跟随挡板移动
+            ball.x = paddle.x + paddle.width / 2;
+            ball.y = paddle.y - ball.radius - 1;
         }
-      }
-    });
 
-    // 掉球
-    balls = balls.filter(b => b.y - b.r < H);
-    if (balls.length === 0 && state !== 'over') {
-      lives--;
-      sync();
-      if (lives <= 0) return gameOver();
-      paddle.w = CFG.paddleW;
-      spawnBall();
-      state = 'play';
+        requestAnimationFrame(draw);
     }
 
-    // 通关判定
-    if (bossDefeated) {
-      bossDefeated = false;
-      setTimeout(() => { if (state !== 'over') nextLevel(); }, 900);
-    } else if (!boss && bricks.length && bricks.every(b => !b.alive)) {
-      nextLevel();
-    }
-  }
-
-  function fireBossBullet() {
-    const cx = boss.x + boss.w / 2;
-    const cy = boss.y + boss.h;
-    const phase = boss.phase;
-
-    if (phase === 0) {
-      bossBullets.push({ x: cx, y: cy, vx: 0, vy: BOSS.bulletSpeed });
-    } else if (phase === 1) {
-      for (let i = -1; i <= 1; i++) {
-        bossBullets.push({ x: cx, y: cy, vx: i * 2.2, vy: BOSS.bulletSpeed });
-      }
-    } else {
-      const tx = paddle.x + paddle.w / 2;
-      const ang = Math.atan2(paddle.y - cy, tx - cx);
-      bossBullets.push({
-        x: cx, y: cy,
-        vx: Math.cos(ang) * BOSS.bulletSpeed * 1.2,
-        vy: Math.sin(ang) * BOSS.bulletSpeed * 1.2
-      });
-      bossBullets.push({ x: boss.x + 10, y: cy, vx: -1.8, vy: BOSS.bulletSpeed });
-      bossBullets.push({ x: boss.x + boss.w - 10, y: cy, vx: 1.8, vy: BOSS.bulletSpeed });
-    }
-  }
-
-  function nextLevel() {
-    level++;
-    score += 100;
-    lives = CFG.lives;          // 每关生命回满
-    if (level % 3 === 0) {
-      spawnBoss();
-    } else {
-      boss = null;
-      bossBullets = [];
-      buildBricks();
-    }
-    spawnBall();
-    state = 'play';
-    sync();
-  }
-
-  function gameOver() {
-    state = 'over';
-    if (score > best) {
-      best = score;
-      localStorage.setItem('bb_best', best);
-      document.getElementById('bestPill').classList.add('record');
-    }
-    document.getElementById('best').textContent = best;
-    document.getElementById('ovTitle').textContent = '游戏结束';
-    document.getElementById('ovText').innerHTML =
-      `最终得分 <b style="color:#fbbf24">${score}</b> · 到达第 ${level} 关<br>最高分 ${best}`;
-    document.getElementById('ovBtn').textContent = '再来一局';
-    document.getElementById('overlay').classList.remove('hidden');
-  }
-
-  function dropPower(x, y) {
-    const types = ['wide', 'multi', 'slow'];
-    powerups.push({ x, y, type: types[Math.floor(Math.random() * types.length)] });
-  }
-
-  function applyPower(type) {
-    if (type === 'wide') {
-      paddle.w = Math.min(CFG.paddleW * 1.6, 240);
-      setTimeout(() => paddle.w = CFG.paddleW, 8000);
-    } else if (type === 'multi') {
-      const src = balls[0];
-      if (src) {
-        for (let i = 0; i < 2; i++) {
-          balls.push({
-            x: src.x, y: src.y, r: src.r, stuck: false,
-            vx: src.vx * (i ? -1 : 1) + (Math.random() - 0.5) * 2,
-            vy: -Math.abs(src.vy)
-          });
-        }
-      }
-    } else if (type === 'slow') {
-      balls.forEach(b => { b.vx *= 0.7; b.vy *= 0.7; });
-    }
-    score += 20;
-    sync();
-  }
-
-  function burst(x, y, color) {
-    for (let i = 0; i < 12; i++) {
-      particles.push({
-        x, y,
-        vx: (Math.random() - 0.5) * 6,
-        vy: (Math.random() - 0.5) * 6 - 1,
-        life: 22 + Math.random() * 12,
-        color
-      });
-    }
-    shake = 6;
-  }
-
-  function sync() {
-    document.getElementById('score').textContent = score;
-    document.getElementById('left').textContent =
-      boss ? Math.max(boss.hp, 0) : bricks.filter(b => b.alive).length;
-    document.getElementById('lives').textContent = Math.max(lives, 0);
-    document.getElementById('level').textContent = level;
-  }
-
-  // ---------- 绘制 ----------
-  function draw() {
-    ctx.save();
-    const totalShake = shake + bossShake;
-    if (totalShake > 0.3) {
-      ctx.translate((Math.random() - 0.5) * totalShake, (Math.random() - 0.5) * totalShake);
-    }
-
-    const bg = ctx.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#0f172a');
-    bg.addColorStop(1, '#020617');
-    ctx.fillStyle = bg;
-    ctx.fillRect(-20, -20, W + 40, H + 40);
-
-    ctx.strokeStyle = 'rgba(56, 189, 248, 0.06)';
-    ctx.lineWidth = 1;
-    for (let x = 0; x < W; x += 40) {
-      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
-    }
-    for (let y = 0; y < H; y += 40) {
-      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
-    }
-
-    // 砖块
-    bricks.forEach(b => {
-      if (!b.alive) return;
-      const [c1, c2] = b.color;
-      const g = ctx.createLinearGradient(b.x, b.y, b.x, b.y + b.h);
-      g.addColorStop(0, c1);
-      g.addColorStop(1, c2);
-      ctx.fillStyle = g;
-      roundRect(b.x, b.y, b.w, b.h, 5);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      roundRect(b.x + 3, b.y + 3, b.w - 6, 5, 3);
-      ctx.fill();
-
-      if (b.maxHp > 1 && b.hp === 2) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.55)';
-        ctx.lineWidth = 2;
-        roundRect(b.x + 1, b.y + 1, b.w - 2, b.h - 2, 5);
-        ctx.stroke();
-      }
-    });
-
-    // Boss
-    if (boss) {
-      const flash = boss.hitFlash > 0;
-      const ratio = Math.max(boss.hp / boss.maxHp, 0);
-
-      const bg2 = ctx.createLinearGradient(boss.x, boss.y, boss.x, boss.y + boss.h);
-      if (flash) {
-        bg2.addColorStop(0, '#ffffff');
-        bg2.addColorStop(1, '#fecaca');
-      } else if (ratio > 0.66) {
-        bg2.addColorStop(0, '#a78bfa');
-        bg2.addColorStop(1, '#6d28d9');
-      } else if (ratio > 0.33) {
-        bg2.addColorStop(0, '#fb923c');
-        bg2.addColorStop(1, '#c2410c');
-      } else {
-        bg2.addColorStop(0, '#f87171');
-        bg2.addColorStop(1, '#991b1b');
-      }
-      ctx.fillStyle = bg2;
-      roundRect(boss.x, boss.y, boss.w, boss.h, 12);
-      ctx.fill();
-
-      ctx.fillStyle = 'rgba(255,255,255,0.2)';
-      roundRect(boss.x + 6, boss.y + 5, boss.w - 12, 8, 4);
-      ctx.fill();
-
-      // 眼睛
-      const eyeY = boss.y + boss.h / 2 + 4;
-      const lookX = Math.max(-6, Math.min(6,
-        (paddle.x + paddle.w / 2 - (boss.x + boss.w / 2)) / 40));
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(boss.x + boss.w * 0.3, eyeY, 11, 0, Math.PI * 2);
-      ctx.arc(boss.x + boss.w * 0.7, eyeY, 11, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = flash ? '#dc2626' : '#0f172a';
-      ctx.beginPath();
-      ctx.arc(boss.x + boss.w * 0.3 + lookX, eyeY, 5, 0, Math.PI * 2);
-      ctx.arc(boss.x + boss.w * 0.7 + lookX, eyeY, 5, 0, Math.PI * 2);
-      ctx.fill();
-
-      // 血条
-      const barW = boss.w, barX = boss.x, barY = boss.y - 18;
-      ctx.fillStyle = 'rgba(15,23,42,0.8)';
-      roundRect(barX, barY, barW, 9, 4); ctx.fill();
-      const hg = ctx.createLinearGradient(barX, 0, barX + barW, 0);
-      hg.addColorStop(0, '#f87171');
-      hg.addColorStop(1, '#facc15');
-      ctx.fillStyle = hg;
-      if (ratio > 0) { roundRect(barX, barY, barW * ratio, 9, 4); ctx.fill(); }
-
-      ctx.fillStyle = '#fca5a5';
-      ctx.font = 'bold 12px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`BOSS · 阶段 ${boss.phase + 1}`, boss.x + boss.w / 2, barY - 7);
-    }
-
-    // Boss 子弹
-    bossBullets.forEach(b => {
-      const g = ctx.createRadialGradient(b.x, b.y, 1, b.x, b.y, 8);
-      g.addColorStop(0, '#fff');
-      g.addColorStop(0.4, '#f87171');
-      g.addColorStop(1, 'rgba(248,113,113,0)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, 8, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // 粒子
-    particles.forEach(p => {
-      ctx.globalAlpha = Math.max(p.life / 30, 0);
-      ctx.fillStyle = p.color;
-      ctx.fillRect(p.x, p.y, 4, 4);
-    });
-    ctx.globalAlpha = 1;
-
-    // 道具
-    powerups.forEach(p => {
-      const map = { wide: ['#38bdf8', '宽'], multi: ['#f472b6', '多'], slow: ['#a3e635', '慢'] };
-      const [color, label] = map[p.type];
-      ctx.fillStyle = color;
-      roundRect(p.x - 13, p.y - 11, 26, 22, 6);
-      ctx.fill();
-      ctx.fillStyle = '#0f172a';
-      ctx.font = 'bold 13px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, p.x, p.y + 1);
-    });
-
-    // 挡板
-    const pg = ctx.createLinearGradient(paddle.x, paddle.y, paddle.x, paddle.y + paddle.h);
-    pg.addColorStop(0, '#fb923c');
-    pg.addColorStop(1, '#ea580c');
-    ctx.fillStyle = pg;
-    roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 7);
-    ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,0.3)';
-    roundRect(paddle.x + 4, paddle.y + 3, paddle.w - 8, 4, 2);
-    ctx.fill();
-
-    // 小球（带拖尾）
-    balls.forEach(b => {
-      const trail = 0.35 * SPEED_LEVELS[speedIdx];
-      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
-      ctx.lineWidth = b.r * 1.4;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x - b.vx * trail, b.y - b.vy * trail);
-      ctx.stroke();
-
-      const sg = ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, b.r);
-      sg.addColorStop(0, '#ffffff');
-      sg.addColorStop(1, '#94a3b8');
-      ctx.fillStyle = sg;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
-      ctx.fill();
-    });
-
-    // 速度角标
-    const sName = SPEED_NAMES[speedIdx];
-    ctx.fillStyle = speedIdx >= 2 ? 'rgba(248,113,113,0.9)' :
-                    speedIdx === 0 ? 'rgba(163,230,53,0.85)' : 'rgba(148,163,184,0.7)';
-    ctx.font = 'bold 14px sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText((speedIdx >= 2 ? '🔥 ' : '⚡ ') + sName + '模式', 14, 28);
-
-    if (state === 'play') {
-      ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
-      ctx.font = '16px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(boss ? '按空格键发射小球，攻击 BOSS！' : '按空格键发射小球', W / 2, H / 2 + 60);
-    }
-    if (state === 'pause') {
-      ctx.fillStyle = 'rgba(2, 6, 23, 0.6)';
-      ctx.fillRect(0, 0, W, H);
-      ctx.fillStyle = '#f8fafc';
-      ctx.font = 'bold 28px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText('已暂停', W / 2, H / 2);
-      ctx.font = '14px sans-serif';
-      ctx.fillStyle = '#94a3b8';
-      ctx.fillText('按空格键继续', W / 2, H / 2 + 30);
-    }
-
-    ctx.restore();
-  }
-
-  function roundRect(x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  addEventListener('resize', draw);
-
-  function loop() {
-    update();
+    // 启动游戏
     draw();
-    requestAnimationFrame(loop);
-  }
 
-  reset(true);
-  state = 'idle';
-  loop();
-})();
 </script>
 </body>
 </html>
