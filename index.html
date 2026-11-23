@@ -124,7 +124,7 @@
   <div class="pill">🧱 剩余 <b id="left">0</b></div>
   <div class="pill">💛 关卡 <b id="level">1</b></div>
   <div class="pill">❤️ 生命 <b id="lives">3</b></div>
-  <div class="pill" id="slowPill">🐢 速度 <b id="slowState">正常</b></div>
+  <div class="pill" id="slowPill">🐢 减速 <b id="slowState">关</b></div>
   <div class="pill" id="bestPill">🏆 最高分 <b id="best">0</b></div>
 </div>
 
@@ -133,14 +133,14 @@
 
   <div class="overlay" id="overlay">
     <h2 id="ovTitle">准备开始</h2>
-    <p id="ovText">移动挡板接住小球，击碎所有砖块。<br>每 3 关出现 <b style="color:#f472b6">BOSS</b>，按 <b>S</b> 键切换速度档位。</p>
+    <p id="ovText">移动挡板接住小球，击碎所有砖块。<br>每 3 关出现 <b style="color:#f472b6">BOSS</b>，每关生命自动回满 3 条。<br>按 <b>S</b> 键可切换减速档位应急。</p>
     <button class="btn" id="ovBtn">开始游戏</button>
   </div>
 </div>
 
 <footer>
   <kbd>←</kbd> <kbd>→</kbd> 或 <kbd>A</kbd> <kbd>D</kbd> 移动挡板，也可直接移动鼠标<br>
-  <kbd>空格</kbd> 发射小球 / 暂停 &nbsp;·&nbsp; <kbd>S</kbd> 切换速度（正常 → 慢 → 超慢）
+  <kbd>空格</kbd> 发射小球 / 暂停 &nbsp;·&nbsp; <kbd>S</kbd> 切换减速（关 → 慢 → 超慢）
 </footer>
 
 <script>
@@ -164,9 +164,9 @@
     ballR: 9,
     paddleW: 150,
     paddleH: 15,
-    baseSpeed: 2.8,
-    maxSpeed: 5.5,
-    speedUp: 0.05,
+    baseSpeed: 3.2,
+    maxSpeed: 6.5,
+    speedUp: 0.06,
     paddleSpeed: 12,
     lives: 3
   };
@@ -178,7 +178,7 @@
     hpPerLevel: 30,
     moveSpeed: 2.2,
     fireInterval: 95,
-    bulletSpeed: 3.2,
+    bulletSpeed: 3.6,
     phases: [
       { at: 0.66, speed: 1.0, fire: 1.0 },
       { at: 0.33, speed: 1.5, fire: 0.7 },
@@ -206,9 +206,9 @@
   let shake = 0, bossShake = 0;
   let bossDefeated = false;
 
-  // 速度档位
+  // 减速档位
   const SPEED_LEVELS = [1, 0.75, 0.55];
-  const SPEED_NAMES = ['正常', '慢', '超慢'];
+  const SPEED_NAMES = ['关', '慢', '超慢'];
   let speedIdx = 0;
 
   best = +(localStorage.getItem('bb_best') || 0);
@@ -252,7 +252,7 @@
   }
 
   function spawnBall() {
-    const speed = Math.min(CFG.baseSpeed + (level - 1) * 0.2, CFG.maxSpeed);
+    const speed = Math.min(CFG.baseSpeed + (level - 1) * 0.25, CFG.maxSpeed);
     balls = [{
       x: paddle.x + paddle.w / 2,
       y: paddle.y - CFG.ballR - 2,
@@ -418,7 +418,7 @@
       if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx *= -1; }
       if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -1; }
 
-      // 挡板
+      // 挡板反弹
       if (ball.vy > 0 &&
           ball.y + ball.r > paddle.y &&
           ball.y - ball.r < paddle.y + paddle.h &&
@@ -462,7 +462,7 @@
         sync();
       }
 
-      // 砖块
+      // 砖块碰撞
       for (const b of bricks) {
         if (!b.alive) continue;
         if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
@@ -534,6 +534,7 @@
   function nextLevel() {
     level++;
     score += 100;
+    lives = CFG.lives;          // 每关生命回满
     if (level % 3 === 0) {
       spawnBoss();
     } else {
@@ -678,7 +679,6 @@
       roundRect(boss.x, boss.y, boss.w, boss.h, 12);
       ctx.fill();
 
-      // 高光
       ctx.fillStyle = 'rgba(255,255,255,0.2)';
       roundRect(boss.x + 6, boss.y + 5, boss.w - 12, 8, 4);
       ctx.fill();
