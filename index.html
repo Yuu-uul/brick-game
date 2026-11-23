@@ -48,11 +48,14 @@
     gap: 6px;
     backdrop-filter: blur(8px);
     transition: all .25s;
+    cursor: pointer;
+    user-select: none;
   }
 
   .pill b { color: #fbbf24; font-variant-numeric: tabular-nums; }
   .pill.record { border-color: #f59e0b; box-shadow: 0 0 14px rgba(245,158,11,.45); }
   .pill.slow-on { border-color: #a3e635; color: #a3e635; }
+  .pill.fast-on { border-color: #f87171; color: #f87171; box-shadow: 0 0 14px rgba(248,113,113,.4); }
 
   .stage {
     position: relative;
@@ -124,7 +127,7 @@
   <div class="pill">🧱 剩余 <b id="left">0</b></div>
   <div class="pill">💛 关卡 <b id="level">1</b></div>
   <div class="pill">❤️ 生命 <b id="lives">3</b></div>
-  <div class="pill" id="slowPill">🐢 减速 <b id="slowState">关</b></div>
+  <div class="pill" id="speedPill">⚡ 速度 <b id="speedState">正常</b></div>
   <div class="pill" id="bestPill">🏆 最高分 <b id="best">0</b></div>
 </div>
 
@@ -133,14 +136,14 @@
 
   <div class="overlay" id="overlay">
     <h2 id="ovTitle">准备开始</h2>
-    <p id="ovText">移动挡板接住小球，击碎所有砖块。<br>每 3 关出现 <b style="color:#f472b6">BOSS</b>，每关生命自动回满 3 条。<br>按 <b>S</b> 键可切换减速档位应急。</p>
+    <p id="ovText">移动挡板接住小球，击碎所有砖块。<br>每 3 关出现 <b style="color:#f472b6">BOSS</b>，每关生命自动回满 3 条。<br>按 <b>S</b> 键或点击速度标签切换：<b>慢 → 正常 → 快 → 极速</b></p>
     <button class="btn" id="ovBtn">开始游戏</button>
   </div>
 </div>
 
 <footer>
   <kbd>←</kbd> <kbd>→</kbd> 或 <kbd>A</kbd> <kbd>D</kbd> 移动挡板，也可直接移动鼠标<br>
-  <kbd>空格</kbd> 发射小球 / 暂停 &nbsp;·&nbsp; <kbd>S</kbd> 切换减速（关 → 慢 → 超慢）
+  <kbd>空格</kbd> 发射小球 / 暂停 &nbsp;·&nbsp; <kbd>S</kbd> 切换速度档位（慢 / 正常 / 快 / 极速）
 </footer>
 
 <script>
@@ -164,10 +167,10 @@
     ballR: 9,
     paddleW: 150,
     paddleH: 15,
-    baseSpeed: 3.2,
-    maxSpeed: 6.5,
-    speedUp: 0.06,
-    paddleSpeed: 12,
+    baseSpeed: 6.0,
+    maxSpeed: 13,
+    speedUp: 0.12,
+    paddleSpeed: 20,
     lives: 3
   };
 
@@ -176,13 +179,13 @@
     h: 62,
     y: 100,
     hpPerLevel: 30,
-    moveSpeed: 2.2,
-    fireInterval: 95,
-    bulletSpeed: 3.6,
+    moveSpeed: 4.2,
+    fireInterval: 55,
+    bulletSpeed: 6.5,
     phases: [
       { at: 0.66, speed: 1.0, fire: 1.0 },
-      { at: 0.33, speed: 1.5, fire: 0.7 },
-      { at: 0,    speed: 2.1, fire: 0.45 }
+      { at: 0.33, speed: 1.6, fire: 0.7 },
+      { at: 0,    speed: 2.3, fire: 0.45 }
     ]
   };
 
@@ -206,10 +209,10 @@
   let shake = 0, bossShake = 0;
   let bossDefeated = false;
 
-  // 减速档位
-  const SPEED_LEVELS = [1, 0.75, 0.55];
-  const SPEED_NAMES = ['关', '慢', '超慢'];
-  let speedIdx = 0;
+  // 速度档位：慢 / 正常 / 快 / 极速
+  const SPEED_LEVELS = [0.7, 1, 1.45, 1.9];
+  const SPEED_NAMES  = ['慢', '正常', '快', '极速'];
+  let speedIdx = 1;   // 默认「正常」
 
   best = +(localStorage.getItem('bb_best') || 0);
   document.getElementById('best').textContent = best;
@@ -252,7 +255,7 @@
   }
 
   function spawnBall() {
-    const speed = Math.min(CFG.baseSpeed + (level - 1) * 0.25, CFG.maxSpeed);
+    const speed = Math.min(CFG.baseSpeed + (level - 1) * 0.5, CFG.maxSpeed);
     balls = [{
       x: paddle.x + paddle.w / 2,
       y: paddle.y - CFG.ballR - 2,
@@ -285,15 +288,21 @@
     powerups = [];
   }
 
+  // ---------- 速度切换 ----------
+  function cycleSpeed() {
+    speedIdx = (speedIdx + 1) % SPEED_LEVELS.length;
+    const name = SPEED_NAMES[speedIdx];
+    document.getElementById('speedState').textContent = name;
+    const pill = document.getElementById('speedPill');
+    pill.classList.toggle('slow-on', speedIdx === 0);
+    pill.classList.toggle('fast-on', speedIdx >= 2);
+  }
+
   // ---------- 输入 ----------
   addEventListener('keydown', e => {
     keys[e.code] = true;
 
-    if (e.code === 'KeyS') {
-      speedIdx = (speedIdx + 1) % SPEED_LEVELS.length;
-      document.getElementById('slowState').textContent = SPEED_NAMES[speedIdx];
-      document.getElementById('slowPill').classList.toggle('slow-on', speedIdx > 0);
-    }
+    if (e.code === 'KeyS') cycleSpeed();
 
     if (e.code === 'Space') {
       e.preventDefault();
@@ -315,6 +324,8 @@
     if (state === 'play') { balls.forEach(b => b.stuck = false); state = 'run'; }
   });
 
+  document.getElementById('speedPill').addEventListener('click', cycleSpeed);
+
   document.getElementById('ovBtn').addEventListener('click', () => {
     document.getElementById('overlay').classList.add('hidden');
     document.getElementById('bestPill').classList.remove('record');
@@ -335,7 +346,7 @@
 
     if (targetX !== null) {
       const dest = Math.max(0, Math.min(W - paddle.w, targetX - paddle.w / 2));
-      paddle.x += (dest - paddle.x) * 0.35;
+      paddle.x += (dest - paddle.x) * 0.4;
     }
     paddle.x = Math.max(0, Math.min(W - paddle.w, paddle.x));
 
@@ -347,7 +358,7 @@
 
     // 道具
     powerups = powerups.filter(p => {
-      p.y += 3 * T;
+      p.y += 5.5 * T;
       if (p.y > paddle.y - 10 && p.y < paddle.y + paddle.h + 10 &&
           p.x > paddle.x - 12 && p.x < paddle.x + paddle.w + 12) {
         applyPower(p.type);
@@ -362,7 +373,7 @@
     // ---------- Boss ----------
     if (boss) {
       if (boss.entering) {
-        boss.y += 3 * T;
+        boss.y += 4 * T;
         if (boss.y >= BOSS.y) { boss.y = BOSS.y; boss.entering = false; }
       } else {
         const ratio = boss.hp / boss.maxHp;
@@ -397,7 +408,10 @@
       });
     }
 
-    // ---------- 小球 ----------
+    // ---------- 小球（子步进防穿透）----------
+    const steps = T > 1.2 ? 2 : 1;
+    const sT = T / steps;
+
     balls.forEach(ball => {
       if (ball.stuck) {
         ball.x = paddle.x + paddle.w / 2;
@@ -405,84 +419,86 @@
         return;
       }
 
-      const spd = Math.hypot(ball.vx, ball.vy);
-      if (spd > CFG.maxSpeed) {
-        ball.vx = ball.vx / spd * CFG.maxSpeed;
-        ball.vy = ball.vy / spd * CFG.maxSpeed;
-      }
-
-      ball.x += ball.vx * T;
-      ball.y += ball.vy * T;
-
-      if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -1; }
-      if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx *= -1; }
-      if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -1; }
-
-      // 挡板反弹
-      if (ball.vy > 0 &&
-          ball.y + ball.r > paddle.y &&
-          ball.y - ball.r < paddle.y + paddle.h &&
-          ball.x > paddle.x - ball.r &&
-          ball.x < paddle.x + paddle.w + ball.r) {
-        const hit = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
-        const speed = Math.min(Math.hypot(ball.vx, ball.vy) + CFG.speedUp, CFG.maxSpeed);
-        const angle = hit * (Math.PI / 3.6);
-        ball.vx = speed * Math.sin(angle);
-        ball.vy = -Math.max(speed * Math.cos(angle), speed * 0.45);
-        ball.y = paddle.y - ball.r - 1;
-        shake = 4;
-      }
-
-      // Boss 碰撞
-      if (boss && !boss.entering &&
-          ball.x + ball.r > boss.x && ball.x - ball.r < boss.x + boss.w &&
-          ball.y + ball.r > boss.y && ball.y - ball.r < boss.y + boss.h) {
-        const ox = Math.min(ball.x + ball.r - boss.x, boss.x + boss.w - (ball.x - ball.r));
-        const oy = Math.min(ball.y + ball.r - boss.y, boss.y + boss.h - (ball.y - ball.r));
-        if (ox < oy) ball.vx *= -1; else ball.vy *= -1;
-
-        boss.hp--;
-        boss.hitFlash = 8;
-        score += 5;
-        bossShake = 5;
-        burst(ball.x, ball.y, '#f472b6');
-        if (Math.random() < 0.25) dropPower(boss.x + Math.random() * boss.w, boss.y + boss.h);
-
-        if (boss.hp <= 0) {
-          for (let i = 0; i < 40; i++) {
-            burst(boss.x + Math.random() * boss.w, boss.y + Math.random() * boss.h,
-                  ['#f472b6', '#facc15', '#60a5fa'][i % 3]);
-          }
-          score += 500;
-          boss = null;
-          bossBullets = [];
-          bossShake = 20;
-          bossDefeated = true;
+      for (let s = 0; s < steps; s++) {
+        const spd = Math.hypot(ball.vx, ball.vy);
+        if (spd > CFG.maxSpeed) {
+          ball.vx = ball.vx / spd * CFG.maxSpeed;
+          ball.vy = ball.vy / spd * CFG.maxSpeed;
         }
-        sync();
-      }
 
-      // 砖块碰撞
-      for (const b of bricks) {
-        if (!b.alive) continue;
-        if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
-            ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
-          const overlapX = Math.min(ball.x + ball.r - b.x, b.x + b.w - (ball.x - ball.r));
-          const overlapY = Math.min(ball.y + ball.r - b.y, b.y + b.h - (ball.y - ball.r));
-          if (overlapX < overlapY) ball.vx *= -1; else ball.vy *= -1;
+        ball.x += ball.vx * sT;
+        ball.y += ball.vy * sT;
 
-          b.hp--;
-          if (b.hp <= 0) {
-            b.alive = false;
-            score += 10 * level;
-            burst(b.x + b.w / 2, b.y + b.h / 2, b.color[0]);
-            if (Math.random() < 0.14) dropPower(b.x + b.w / 2, b.y + b.h / 2);
-          } else {
-            score += 5;
-            shake = 3;
+        if (ball.x < ball.r) { ball.x = ball.r; ball.vx *= -1; }
+        if (ball.x > W - ball.r) { ball.x = W - ball.r; ball.vx *= -1; }
+        if (ball.y < ball.r) { ball.y = ball.r; ball.vy *= -1; }
+
+        // 挡板反弹
+        if (ball.vy > 0 &&
+            ball.y + ball.r > paddle.y &&
+            ball.y - ball.r < paddle.y + paddle.h &&
+            ball.x > paddle.x - ball.r &&
+            ball.x < paddle.x + paddle.w + ball.r) {
+          const hit = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+          const speed = Math.min(Math.hypot(ball.vx, ball.vy) + CFG.speedUp, CFG.maxSpeed);
+          const angle = hit * (Math.PI / 3.6);
+          ball.vx = speed * Math.sin(angle);
+          ball.vy = -Math.max(speed * Math.cos(angle), speed * 0.45);
+          ball.y = paddle.y - ball.r - 1;
+          shake = 4;
+        }
+
+        // Boss 碰撞
+        if (boss && !boss.entering &&
+            ball.x + ball.r > boss.x && ball.x - ball.r < boss.x + boss.w &&
+            ball.y + ball.r > boss.y && ball.y - ball.r < boss.y + boss.h) {
+          const ox = Math.min(ball.x + ball.r - boss.x, boss.x + boss.w - (ball.x - ball.r));
+          const oy = Math.min(ball.y + ball.r - boss.y, boss.y + boss.h - (ball.y - ball.r));
+          if (ox < oy) ball.vx *= -1; else ball.vy *= -1;
+
+          boss.hp--;
+          boss.hitFlash = 8;
+          score += 5;
+          bossShake = 5;
+          burst(ball.x, ball.y, '#f472b6');
+          if (Math.random() < 0.25) dropPower(boss.x + Math.random() * boss.w, boss.y + boss.h);
+
+          if (boss.hp <= 0) {
+            for (let i = 0; i < 40; i++) {
+              burst(boss.x + Math.random() * boss.w, boss.y + Math.random() * boss.h,
+                    ['#f472b6', '#facc15', '#60a5fa'][i % 3]);
+            }
+            score += 500;
+            boss = null;
+            bossBullets = [];
+            bossShake = 20;
+            bossDefeated = true;
           }
           sync();
-          break;
+        }
+
+        // 砖块碰撞
+        for (const b of bricks) {
+          if (!b.alive) continue;
+          if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
+              ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
+            const overlapX = Math.min(ball.x + ball.r - b.x, b.x + b.w - (ball.x - ball.r));
+            const overlapY = Math.min(ball.y + ball.r - b.y, b.y + b.h - (ball.y - ball.r));
+            if (overlapX < overlapY) ball.vx *= -1; else ball.vy *= -1;
+
+            b.hp--;
+            if (b.hp <= 0) {
+              b.alive = false;
+              score += 10 * level;
+              burst(b.x + b.w / 2, b.y + b.h / 2, b.color[0]);
+              if (Math.random() < 0.14) dropPower(b.x + b.w / 2, b.y + b.h / 2);
+            } else {
+              score += 5;
+              shake = 3;
+            }
+            sync();
+            break;
+          }
         }
       }
     });
@@ -516,7 +532,7 @@
       bossBullets.push({ x: cx, y: cy, vx: 0, vy: BOSS.bulletSpeed });
     } else if (phase === 1) {
       for (let i = -1; i <= 1; i++) {
-        bossBullets.push({ x: cx, y: cy, vx: i * 1.6, vy: BOSS.bulletSpeed });
+        bossBullets.push({ x: cx, y: cy, vx: i * 2.2, vy: BOSS.bulletSpeed });
       }
     } else {
       const tx = paddle.x + paddle.w / 2;
@@ -526,8 +542,8 @@
         vx: Math.cos(ang) * BOSS.bulletSpeed * 1.2,
         vy: Math.sin(ang) * BOSS.bulletSpeed * 1.2
       });
-      bossBullets.push({ x: boss.x + 10, y: cy, vx: -1.2, vy: BOSS.bulletSpeed });
-      bossBullets.push({ x: boss.x + boss.w - 10, y: cy, vx: 1.2, vy: BOSS.bulletSpeed });
+      bossBullets.push({ x: boss.x + 10, y: cy, vx: -1.8, vy: BOSS.bulletSpeed });
+      bossBullets.push({ x: boss.x + boss.w - 10, y: cy, vx: 1.8, vy: BOSS.bulletSpeed });
     }
   }
 
@@ -759,8 +775,17 @@
     roundRect(paddle.x + 4, paddle.y + 3, paddle.w - 8, 4, 2);
     ctx.fill();
 
-    // 小球
+    // 小球（带拖尾）
     balls.forEach(b => {
+      const trail = 0.35 * SPEED_LEVELS[speedIdx];
+      ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+      ctx.lineWidth = b.r * 1.4;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.moveTo(b.x, b.y);
+      ctx.lineTo(b.x - b.vx * trail, b.y - b.vy * trail);
+      ctx.stroke();
+
       const sg = ctx.createRadialGradient(b.x - 3, b.y - 3, 1, b.x, b.y, b.r);
       sg.addColorStop(0, '#ffffff');
       sg.addColorStop(1, '#94a3b8');
@@ -770,12 +795,13 @@
       ctx.fill();
     });
 
-    if (speedIdx > 0) {
-      ctx.fillStyle = 'rgba(163, 230, 53, 0.85)';
-      ctx.font = 'bold 14px sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText('🐢 ' + SPEED_NAMES[speedIdx] + '模式', 14, 28);
-    }
+    // 速度角标
+    const sName = SPEED_NAMES[speedIdx];
+    ctx.fillStyle = speedIdx >= 2 ? 'rgba(248,113,113,0.9)' :
+                    speedIdx === 0 ? 'rgba(163,230,53,0.85)' : 'rgba(148,163,184,0.7)';
+    ctx.font = 'bold 14px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText((speedIdx >= 2 ? '🔥 ' : '⚡ ') + sName + '模式', 14, 28);
 
     if (state === 'play') {
       ctx.fillStyle = 'rgba(226, 232, 240, 0.75)';
